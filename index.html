@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>загрузка…</title>
+<style>
+  @property --a {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: #06060b;
+    color: #e8e8f0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- фон ---------- */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: .45;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .orb-1 { width: 360px; height: 360px; background: #7c5cff; top: -100px; left: -90px;  animation: float1 14s ease-in-out infinite; }
+  .orb-2 { width: 300px; height: 300px; background: #22d3ee; bottom: -110px; right: -80px; animation: float2 17s ease-in-out infinite; }
+  .orb-3 { width: 240px; height: 240px; background: #f472b6; bottom: 20%; left: -120px;    animation: float3 21s ease-in-out infinite; opacity: .28; }
+
+  @keyframes float1 { 0%,100% { transform: translate(0,0) scale(1); }      50% { transform: translate(50px,40px) scale(1.15); } }
+  @keyframes float2 { 0%,100% { transform: translate(0,0) scale(1.1); }    50% { transform: translate(-60px,-30px) scale(.9); } }
+  @keyframes float3 { 0%,100% { transform: translate(0,0) scale(1); }      50% { transform: translate(70px,-50px) scale(1.2); } }
+
+  /* ---------- карточка ---------- */
+  .card {
+    position: relative;
+    width: min(380px, 100%);
+    padding: 40px 32px 32px;
+    border-radius: 26px;
+    background: linear-gradient(180deg, rgba(20,20,32,.96), rgba(11,11,18,.98));
+    box-shadow:
+      0 40px 80px -40px rgba(0,0,0,.95),
+      0 0 60px -30px rgba(124,92,255,.6);
+    z-index: 1;
+    isolation: isolate;
+  }
+
+  /* анимированная градиентная рамка */
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(from var(--a), #7c5cff, #22d3ee, #f472b6, #7c5cff);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    opacity: .7;
+    transition: opacity .4s ease;
+    pointer-events: none;
+    animation: borderSpin 6s linear infinite;
+  }
+  .card:hover::before { opacity: 1; }
+
+  @keyframes borderSpin { to { --a: 360deg; } }
+
+  /* ---------- псевдо-загрузка ---------- */
+  .loader {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    z-index: 3;
+    transition: opacity .55s ease, transform .55s ease, filter .55s ease;
+  }
+  .loader.hide {
+    opacity: 0;
+    transform: scale(.94);
+    filter: blur(12px);
+    pointer-events: none;
+  }
+
+  .ring {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, rgba(124,92,255,0) 0%, #7c5cff 55%, #22d3ee 100%);
+    -webkit-mask: radial-gradient(farthest-side, #0000 calc(100% - 4px), #000 calc(100% - 3px));
+            mask: radial-gradient(farthest-side, #0000 calc(100% - 4px), #000 calc(100% - 3px));
+    filter: drop-shadow(0 0 14px rgba(124,92,255,.7));
+    animation: ringSpin .9s linear infinite;
+  }
+  @keyframes ringSpin { to { transform: rotate(360deg); } }
+
+  .loader-label {
+    font-size: 11px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: #8585a6;
+    font-variant-numeric: tabular-nums;
+  }
+  .loader-label span { color: #fff; font-weight: 700; }
+
+  .bar {
+    width: 180px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.07);
+    overflow: hidden;
+  }
+  .bar-fill {
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #7c5cff, #22d3ee);
+    box-shadow: 0 0 14px rgba(124,92,255,.9);
+    transition: width .28s cubic-bezier(.3,.8,.4,1);
+  }
+
+  /* ---------- контент ---------- */
+  .content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .content > * {
+    opacity: 0;
+    transform: translateY(16px);
+    filter: blur(8px);
+    transition:
+      opacity .7s cubic-bezier(.2,.7,.2,1),
+      transform .7s cubic-bezier(.2,.7,.2,1),
+      filter .7s cubic-bezier(.2,.7,.2,1);
+  }
+  .content.reveal > * { opacity: 1; transform: none; filter: blur(0); }
+
+  .content > *:nth-child(1) { transition-delay: .05s; }
+  .content > *:nth-child(2) { transition-delay: .13s; }
+  .content > *:nth-child(3) { transition-delay: .21s; }
+  .content > *:nth-child(4) { transition-delay: .29s; }
+  .content > *:nth-child(5) { transition-delay: .37s; }
+  .content > *:nth-child(6) { transition-delay: .45s; }
+
+  .avatar-wrap { position: relative; margin-bottom: 20px; }
+
+  .avatar {
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: .02em;
+    color: #08080f;
+    background: linear-gradient(135deg, #7c5cff, #22d3ee);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,.14) inset,
+      0 16px 38px -14px rgba(124,92,255,.95);
+    position: relative;
+  }
+  .avatar::after {
+    content: '';
+    position: absolute;
+    inset: -9px;
+    border-radius: 50%;
+    border: 1px dashed rgba(124,92,255,.55);
+    animation: ringSpin 14s linear infinite;
+  }
+
+  .status {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #34e39a;
+    border: 3px solid #0d0d16;
+    box-shadow: 0 0 12px rgba(52,227,154,.9);
+  }
+
+  .name {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: .05em;
+    background: linear-gradient(180deg, #ffffff, #b6b6d8);
+    -webkit-background-clip: text;
+            background-clip: text;
+    color: transparent;
+  }
+
+  .role {
+    margin: 7px 0 0;
+    font-size: 11.5px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: #8b8ba7;
+  }
+
+  .bio {
+    margin: 16px 0 0;
+    max-width: 290px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: #9797b4;
+  }
+
+  .stats {
+    display: flex;
+    width: 100%;
+    margin-top: 22px;
+    padding: 14px 0;
+    border-top: 1px solid rgba(255,255,255,.07);
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat + .stat { border-left: 1px solid rgba(255,255,255,.07); }
+  .stat b {
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat span {
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #6c6c8a;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    margin-top: 22px;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 12px 10px;
+    border-radius: 12px;
+    border: 0;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform .25s cubic-bezier(.2,.8,.3,1), filter .25s, background .25s, box-shadow .25s;
+  }
+  .btn:active { transform: scale(.97); }
+
+  .btn.primary {
+    color: #07070d;
+    background: linear-gradient(135deg, #7c5cff, #22d3ee);
+    box-shadow: 0 12px 28px -12px rgba(124,92,255,.95);
+  }
+  .btn.primary:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+    box-shadow: 0 18px 34px -12px rgba(124,92,255,1);
+  }
+
+  .btn.ghost {
+    color: #d6d6ea;
+    background: rgba(255,255,255,.05);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.1) inset;
+  }
+  .btn.ghost:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,.1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orb, .card::before, .ring, .avatar::after { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <main class="card">
+    <!-- псевдо-загрузка -->
+    <div class="loader" id="loader">
+      <div class="ring"></div>
+      <div class="loader-label">Загрузка <span id="pct">0</span>%</div>
+      <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+    </div>
+
+    <!-- контент -->
+    <div class="content" id="content">
+      <div class="avatar-wrap">
+        <div class="avatar">АВ</div>
+        <span class="status"></span>
+      </div>
+
+      <h1 class="name">АЛЕКС ВОЙД</h1>
+      <p class="role">Frontend-разработчик</p>
+      <p class="bio">Собираю интерфейсы, которые не хочется закрывать. Анимации, микровзаимодействия, скорость.</p>
+
+      <div class="stats">
+        <div class="stat"><b>7</b><span>лет опыта</span></div>
+        <div class="stat"><b>120+</b><span>проектов</span></div>
+        <div class="stat"><b>42k</b><span>подписчиков</span></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary">Написать</button>
+        <button class="btn ghost">Портфолио</button>
+      </div>
+    </div>
+  </main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= Скремблинг заголовка вкладки ================= */
+
+  const CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン'
+              + 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+              + '0123456789'
+              + '#$%&@*<>/\\|+=?!';
+
+  const TITLE = 'АЛЕКС ВОЙД — КАРТОЧКА';
+
+  function randomStr(len) {
+    let s = '';
+    for (let i = 0; i < len; i++) {
+      s += CHARS[(Math.random() * CHARS.length) | 0];
+    }
+    return s;
+  }
+
+  // Пока идёт «загрузка» — заголовок постоянно сыпется случайными символами
+  let scrambleTimer = setInterval(function () {
+    document.title = randomStr(TITLE.length);
+  }, 55);
+
+  // Короткие «глитчи» после загрузки
+  function scheduleGlitch() {
+    const delay = 3500 + Math.random() * 4500;
+
+    setTimeout(function () {
+      let ticks = 0;
+      const iv = setInterval(function () {
+        document.title = randomStr(TITLE.length);
+        if (++ticks >= 7) {
+          clearInterval(iv);
+          document.title = TITLE;
+          scheduleGlitch();
+        }
+      }, 60);
+    }, delay);
+  }
+
+  /* ================= Псевдо-загрузка ================= */
+
+  const pctEl    = document.getElementById('pct');
+  const barEl    = document.getElementById('barFill');
+  const loaderEl = document.getElementById('loader');
+  const contentEl = document.getElementById('content');
+
+  let progress = 0;
+  let finished = false;
+
+  function render() {
+    const value = Math.floor(progress);
+    pctEl.textContent = value;
+    barEl.style.width = progress + '%';
+  }
+
+  function step() {
+    if (finished) return;
+
+    const remaining = 100 - progress;
+    let inc;
+
+    if (remaining > 60)      inc = Math.random() * 18 + 6;   // старт — быстро
+    else if (remaining > 20) inc = Math.random() * 10 + 3;   // середина
+    else                     inc = Math.random() * 6 + 1;    // финиш — медленно
+
+    progress = Math.min(100, progress + inc);
+    render();
+
+    if (progress >= 100) {
+      finish();
+      return;
+    }
+
+    setTimeout(step, 80 + Math.random() * 220);
+  }
+
+  function finish() {
+    finished = true;
+    progress = 100;
+    render();
+
+    // Заголовок «доезжает» до финального текста
+    clearInterval(scrambleTimer);
+    document.title = TITLE;
+    scheduleGlitch();
+
+    setTimeout(function () {
+      loaderEl.classList.add('hide');
+      contentEl.classList.add('reveal');
+    }, 320);
+  }
+
+  // Старт
+  render();
+  setTimeout(step, 250);
+
+  /* ================= Мелочи для кнопок ================= */
+
+  document.querySelectorAll('.btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      // короткий «глитч» заголовка на клик
+      let ticks = 0;
+      const iv = setInterval(function () {
+        document.title = randomStr(TITLE.length);
+        if (++ticks >= 5) {
+          clearInterval(iv);
+          document.title = TITLE;
+        }
+      }, 55);
+    });
+  });
+})();
+</script>
+</body>
+</html>
