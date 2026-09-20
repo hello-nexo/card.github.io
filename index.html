@@ -230,6 +230,19 @@
     margin: 0 auto 34px;
   }
 
+  /* ---------- HOVER-ЭФФЕКТ ДЛЯ СЛОВ ---------- */
+  .w {
+    display: inline-block;
+    transition:
+      transform .38s cubic-bezier(.2,.8,.2,1),
+      text-shadow .35s ease,
+      color .3s ease;
+  }
+  .w:hover {
+    transform: translateY(-4px);
+    text-shadow: 0 0 14px rgba(255,255,255,.6);
+  }
+
   /* ---------- КНОПКИ ---------- */
   .links {
     display: flex;
@@ -267,6 +280,13 @@
   .btn-link:active {
     transform: translateY(-1px);
     background: rgba(255,255,255,.2);
+  }
+
+  /* текст внутри кнопки тоже поднимается и подсвечивается
+     при наведении на любую точку кнопки, а не только на сам текст */
+  .btn-link:hover .w {
+    transform: translateY(-3px);
+    text-shadow: 0 0 12px rgba(255,255,255,.55);
   }
 
   /* ---------- КНОПКА ПЕРЕЗАПУСКА ---------- */
@@ -336,7 +356,7 @@
     </h1>
 
     <p class="role">
-      <span class="w">Frontend-разработчик</span>
+      <span class="w">Страх Захара по призванию! Хе-хе.</span>
     </p>
 
     <p class="bio">
@@ -349,7 +369,9 @@
       <span class="w">по призванию</span>
       <span class="w">и</span>
       <span class="w">организатор</span>
-      <span class="w">ботнетов и хостов</span>
+      <span class="w">ботнетов</span>
+      <span class="w">и</span>
+      <span class="w">хостов</span>
     </p>
 
     <nav class="links">
@@ -362,7 +384,7 @@
       <button class="btn-link" id="discordBtn" type="button" data-copy="hellnexo">
         <span class="w">Discord</span>
       </button>
-      <a class="btn-link" href="mailto:loki.rev@list.ru">
+      <a class="btn-link" href="mailto:hello@nexo.dev">
         <span class="w">Email</span>
       </a>
     </nav>
