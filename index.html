@@ -32,6 +32,14 @@
     --bg: #000;
   }
 
+  /* ---------- МИР (сюда применяется zoom камеры) ---------- */
+  .world {
+    position: absolute;
+    inset: 0;
+    will-change: transform;
+    transform-origin: 0 0;
+  }
+
   /* ---------- ПЛОСКОСТЬ ---------- */
   .ground {
     position: absolute;
@@ -120,10 +128,49 @@
     pointer-events: none;
     will-change: opacity;
     transition: opacity .35s ease;
+    z-index: 35;
   }
   .hint.hide {
     opacity: 0 !important;
     transition: opacity .25s ease;
+  }
+
+  /* ================================================================
+     ЭХО ОТ КЛИКА
+     ================================================================ */
+  .echo {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 480px;
+    height: 480px;
+    margin: -240px 0 0 -240px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 5;
+    background:
+      radial-gradient(circle,
+        rgba(255,255,255,.55) 0%,
+        rgba(255,255,255,.28) 22%,
+        rgba(255,255,255,.10) 45%,
+        rgba(255,255,255,0) 70%);
+    mix-blend-mode: screen;
+    will-change: transform, opacity;
+  }
+
+  .echo-ring {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 320px;
+    height: 320px;
+    margin: -160px 0 0 -160px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.85);
+    pointer-events: none;
+    z-index: 5;
+    mix-blend-mode: screen;
+    will-change: transform, opacity;
   }
 
   /* ================================================================
@@ -284,7 +331,6 @@
     background: rgba(255,255,255,.2);
   }
 
-  /* текст внутри кнопки тоже поднимается и подсвечивается */
   .btn-link:hover .w {
     transform: translateY(-3px);
     text-shadow: 0 0 12px rgba(255,255,255,.55);
@@ -323,8 +369,12 @@
 
 <div class="stage" id="stage">
 
-  <div class="ground" id="ground"></div>
-  <div class="ball" id="ball"></div>
+  <!-- МИР, к которому применяется зум камеры -->
+  <div class="world" id="world">
+    <div class="ground" id="ground"></div>
+    <div class="ball" id="ball"></div>
+  </div>
+
   <div class="slot" id="slot"></div>
 
   <div class="key" id="key">
@@ -357,7 +407,7 @@
     </h1>
 
     <p class="role">
-      <span class="w">Frontend-разработчик</span>
+      <span class="w">Кумир Захара XD</span>
     </p>
 
     <p class="bio">
@@ -403,6 +453,7 @@
      ЭЛЕМЕНТЫ
      ================================================================ */
   const stage      = document.getElementById('stage');
+  const worldEl    = document.getElementById('world');
   const ballEl     = document.getElementById('ball');
   const groundEl   = document.getElementById('ground');
   const slotEl     = document.getElementById('slot');
@@ -419,7 +470,7 @@
   const R             = 18;
   const FLIP_AT       = 2000;
   const FLIP_MS       = 650;
-  const ROLL_MS       = 3100;
+  const ROLL_MS       = 3400;
   const GRAV          = 2900;
   const SNAP          = 68;
   const LOCK_MS       = 320;
@@ -429,6 +480,10 @@
   const P_SWALLOW_MS  = 950;
   const P_SETTLE_MS   = 350;
   const P_TOTAL_MS    = P_OPEN_MS + P_SWALLOW_MS + P_SETTLE_MS;
+
+  /* ---------- Камера ---------- */
+  const ZOOM_START    = 2.6;
+  const ZOOM_END      = 1.0;
 
   /* ================================================================
      ПАСХАЛКА В КОНСОЛИ
@@ -447,6 +502,101 @@
       'line-height: 1.2'
     ].join(';')
   );
+
+  /* ================================================================
+     ЗВУК + ЭХО НА КЛИК
+     ================================================================ */
+  let audioCtx = null;
+
+  function playClickSound() {
+    try {
+      if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        audioCtx = new Ctx();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      const now = audioCtx.currentTime;
+
+      /* Основной тон — мягкий «клик» */
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(760, now);
+      osc.frequency.exponentialRampToValueAtTime(220, now + 0.18);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.14, now + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.26);
+
+      /* Второй тон — маленький «блик» сверху */
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(1400, now);
+      osc2.frequency.exponentialRampToValueAtTime(900, now + 0.09);
+
+      gain2.gain.setValueAtTime(0.0001, now);
+      gain2.gain.exponentialRampToValueAtTime(0.05, now + 0.004);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
+
+      osc2.connect(gain2);
+      gain2.connect(audioCtx.destination);
+      osc2.start(now);
+      osc2.stop(now + 0.13);
+    } catch (e) { /* тихо игнорим */ }
+  }
+
+  function spawnEcho(x, y) {
+    /* мягкое белое облако */
+    const glow = document.createElement('div');
+    glow.className = 'echo';
+    glow.style.left = x + 'px';
+    glow.style.top  = y + 'px';
+    document.body.appendChild(glow);
+
+    glow.animate(
+      [
+        { transform: 'scale(0.18)', opacity: 0.95 },
+        { transform: 'scale(1)',    opacity: 0 }
+      ],
+      {
+        duration: 1150,
+        easing: 'cubic-bezier(.15,.65,.3,1)',
+        fill: 'forwards'
+      }
+    ).onfinish = function () { glow.remove(); };
+
+    /* тонкое кольцо-«волна» */
+    const ring = document.createElement('div');
+    ring.className = 'echo-ring';
+    ring.style.left = x + 'px';
+    ring.style.top  = y + 'px';
+    document.body.appendChild(ring);
+
+    ring.animate(
+      [
+        { transform: 'scale(0.15)', opacity: 0.85 },
+        { transform: 'scale(1.9)',  opacity: 0 }
+      ],
+      {
+        duration: 1300,
+        easing: 'cubic-bezier(.2,.6,.25,1)',
+        fill: 'forwards'
+      }
+    ).onfinish = function () { ring.remove(); };
+  }
+
+  document.addEventListener('pointerdown', function (e) {
+    playClickSound();
+    spawnEcho(e.clientX, e.clientY);
+  }, { passive: true });
 
   /* ================================================================
      ЗАГОЛОВОК ВКЛАДКИ
@@ -495,15 +645,16 @@
   let groundY = 0;
 
   /* --- камера и мир --- */
-  let worldStart = 0;     // левый край дороги в мировых координатах
-  let worldEdge  = 0;     // правый край дороги (откуда падаем)
-  let followX    = 0;     // экранная X-позиция шара, пока камера его "держит"
-  let fallScreenX = 0;    // экранная X-позиция края, где шар срывается
-  let cameraMaxX = 0;     // максимум, до которого доезжает камера
+  let worldStart = 0;
+  let worldEdge  = 0;
+  let followX    = 0;
+  let fallScreenX = 0;
+  let cameraMaxX = 0;
 
-  let worldX  = 0;        // текущая позиция шара в мире
-  let cameraX = 0;        // текущая позиция камеры (мировая X на левом краю экрана)
+  let worldX  = 0;
+  let cameraX = 0;
   let ballCX = 0, ballCY = 0, ballRot = 0;
+  let zoom    = ZOOM_START;
 
   let KW = 0, KH = 0, slotCX = 0, slotCY = 0;
 
@@ -532,15 +683,10 @@
 
     groundY = Math.round(H * 0.68);
 
-    /* Настройки камеры:
-       - шар висит на followX пока камера его держит
-       - дорога длиной worldEdge мировых пикселей
-       - у самого конца камера "отпускает" шар, и он срывается
-         на экранной позиции fallScreenX */
-    followX     = Math.min(W * 0.32, 220);
+    followX     = Math.min(W * 0.30, 200);
     fallScreenX = W * 0.80;
-    worldStart  = -followX;           // чуть-чуть дороги слева, чтоб не было пустоты
-    worldEdge   = W * 2.2;            // общая длина дороги
+    worldStart  = -followX;
+    worldEdge   = W * 2.2;
     cameraMaxX  = worldEdge - fallScreenX;
 
     groundEl.style.top   = groundY + 'px';
@@ -558,6 +704,9 @@
     slotEl.style.left   = slotCX + 'px';
     slotEl.style.top    = slotCY + 'px';
 
+    /* origin зума — на шаре, на уровне земли */
+    worldEl.style.transformOrigin = followX + 'px ' + groundY + 'px';
+
     if (phase === 'key' && !locked) clampKey();
   }
 
@@ -574,7 +723,7 @@
     if (!t0) t0 = now;
     const t = now - t0;
 
-    /* ---------- ФАЗА 1: КАТИТСЯ (камера следит за шаром) ---------- */
+    /* ---------- ФАЗА 1: КАТИТСЯ, КАМЕРА ОТЪЕЗЖАЕТ ---------- */
     if (phase === 'roll') {
 
       if (t < FLIP_AT) {
@@ -591,15 +740,25 @@
       ballCY  = groundY - R;
       ballRot = -(worldX / R) * (180 / Math.PI);
 
-      /* двигаем дорогу в мире → на экране она едет влево */
+      /* зум: плавно от ZOOM_START к ZOOM_END (ease-in-out) */
+      const ez = p < 0.5
+        ? 2 * p * p
+        : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      zoom = ZOOM_START + (ZOOM_END - ZOOM_START) * ez;
+
+      worldEl.style.transform = 'scale(' + zoom + ')';
       groundEl.style.transform = 'translateX(' + (worldStart - cameraX) + 'px)';
 
       if (t >= ROLL_MS) {
         phase     = 'fall';
         fallT0    = now;
-        fallVX    = worldEdge / ROLL_MS;              // px/ms
+        fallVX    = worldEdge / ROLL_MS;
         rotAtFall = ballRot;
         angVel    = (fallVX / R) * (180 / Math.PI);
+
+        /* на падении зум строго 1 */
+        zoom = 1;
+        worldEl.style.transform = 'scale(1)';
       }
     }
 
