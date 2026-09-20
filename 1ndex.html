@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>???</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Ctext x='32' y='46' font-size='42' font-weight='800' font-family='system-ui,-apple-system,sans-serif' text-anchor='middle' fill='%23fff'%3EN%3C/text%3E%3C/svg%3E">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+  }
+
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ---------- СЦЕНА ---------- */
+  .stage {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    color: #fff;
+    overflow: hidden;
+    touch-action: none;
+    --bg: #000;
+  }
+
+  /* ---------- ПЛОСКОСТЬ ---------- */
+  .ground {
+    position: absolute;
+    left: 0;
+    height: 3px;
+    border-radius: 3px;
+    background: currentColor;
+    transition: opacity .5s ease;
+    will-change: opacity;
+  }
+  .ground.gone { opacity: 0; }
+
+  /* ---------- ШАР ---------- */
+  .ball {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: currentColor;
+    will-change: transform;
+  }
+  .ball::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 13%;
+    width: 26%;
+    height: 26%;
+    margin-left: -13%;
+    border-radius: 50%;
+    background: var(--bg, #000);
+  }
+
+  /* ---------- ЩЕЛЬ ---------- */
+  .slot {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity .7s ease;
+    animation: slotPulse 2.6s ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+  .slot.show { opacity: .9; }
+
+  @keyframes slotPulse {
+    0%, 100% { transform: translate(-50%, -50%) scaleX(1); }
+    50%      { transform: translate(-50%, -50%) scaleX(1.12); }
+  }
+
+  /* ---------- КЛЮЧ ---------- */
+  .key {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    transition: opacity .8s ease;
+    cursor: grab;
+    touch-action: none;
+    will-change: transform, opacity;
+    z-index: 30;
+  }
+  .key.show { opacity: 1; }
+  .key.dragging { cursor: grabbing; }
+  .key svg { display: block; width: 100%; height: 100%; }
+
+  /* ---------- ПОДСКАЗКА ---------- */
+  .hint {
+    position: absolute;
+    left: 50%;
+    bottom: 6%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    will-change: opacity;
+    transition: opacity .35s ease;
+  }
+  .hint.hide {
+    opacity: 0 !important;
+    transition: opacity .25s ease;
+  }
+
+  /* ================================================================
+     ПОРТАЛ
+     ================================================================ */
+  .portal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity .3s ease;
+  }
+  .portal.on { opacity: 1; }
+
+  .portal-core {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: #000;
+    transform: translate(-50%, -50%);
+    will-change: width, height;
+  }
+
+  .portal-ripple {
+    position: absolute;
+    left: -30px;
+    top: -30px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid #000;
+    opacity: 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+  .portal.on .portal-ripple {
+    animation: rippleOut 1.6s cubic-bezier(.2,.6,.3,1) infinite;
+  }
+  .portal.on .portal-ripple:nth-of-type(2) { animation-delay: .35s; }
+  .portal.on .portal-ripple:nth-of-type(3) { animation-delay: .7s; }
+  .portal.on .portal-ripple:nth-of-type(4) { animation-delay: 1.05s; }
+
+  @keyframes rippleOut {
+    0%   { transform: scale(.25); opacity: .75; border-width: 3px; }
+    100% { transform: scale(7);   opacity: 0;   border-width: 1px; }
+  }
+
+  /* ================================================================
+     ИНФО-КАРТОЧКА
+     ================================================================ */
+  .info-card {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(440px, 88vw);
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 40px 30px;
+    text-align: center;
+    color: #fff;
+    z-index: 80;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 90px));
+    transition:
+      transform 1.15s cubic-bezier(.2,.8,.2,1),
+      opacity .9s ease;
+    scrollbar-width: none;
+  }
+  .info-card::-webkit-scrollbar { display: none; }
+
+  .info-card.on {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+  }
+
+  .greeting {
+    font-size: clamp(30px, 8vw, 44px);
+    font-weight: 800;
+    letter-spacing: -.01em;
+    line-height: 1.1;
+    margin-bottom: 14px;
+  }
+
+  .role {
+    font-size: clamp(10px, 2.6vw, 12px);
+    letter-spacing: .32em;
+    text-transform: uppercase;
+    color: #7a7a7a;
+    margin-bottom: 30px;
+  }
+
+  .bio {
+    font-size: clamp(14px, 3.6vw, 16px);
+    line-height: 1.85;
+    color: #b5b5b5;
+    max-width: 360px;
+    margin: 0 auto 34px;
+  }
+
+  /* ---------- КНОПКИ ---------- */
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .btn-link {
+    display: inline-block;
+    padding: 12px 22px;
+    color: #fff;
+    text-decoration: none;
+    font-size: clamp(10.5px, 2.7vw, 11.5px);
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    font-weight: 500;
+    background: rgba(255,255,255,.045);
+    border-radius: 999px;
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
+    transition:
+      background .3s ease,
+      transform .38s cubic-bezier(.2,.8,.2,1),
+      letter-spacing .35s ease,
+      color .3s ease;
+  }
+  .btn-link:hover {
+    background: rgba(255,255,255,.13);
+    transform: translateY(-4px);
+    letter-spacing: .28em;
+  }
+  .btn-link:active {
+    transform: translateY(-1px);
+    background: rgba(255,255,255,.2);
+  }
+
+  /* ---------- КНОПКА ПЕРЕЗАПУСКА ---------- */
+  .restart {
+    margin-top: 40px;
+    background: transparent;
+    border: 0;
+    color: #3a3a3a;
+    font-family: inherit;
+    font-size: 10.5px;
+    letter-spacing: .32em;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 10px 16px;
+    opacity: 0;
+    transition: opacity .9s ease, color .3s ease, transform .38s cubic-bezier(.2,.8,.2,1);
+  }
+  .info-card.on .restart {
+    opacity: .55;
+    transition: opacity .9s ease 1.5s, color .3s ease, transform .38s cubic-bezier(.2,.8,.2,1);
+  }
+  .restart:hover {
+    color: #fff;
+    transform: translateY(-3px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slot, .portal-ripple { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+
+  <div class="ground" id="ground"></div>
+  <div class="ball" id="ball"></div>
+  <div class="slot" id="slot"></div>
+
+  <div class="key" id="key">
+    <svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+      <path fill-rule="evenodd"
+            d="M12,50 A28,28 0 1,0 68,50 A28,28 0 1,0 12,50 Z
+               M29,50 A11,11 0 1,1 51,50 A11,11 0 1,1 29,50 Z"/>
+      <rect x="45" y="44" width="150" height="12" rx="5"/>
+      <rect x="156" y="56" width="11" height="22" rx="3"/>
+      <rect x="178" y="56" width="11" height="15" rx="3"/>
+    </svg>
+  </div>
+
+  <div class="hint" id="hint">Подведите ключ к щели</div>
+
+  <!-- ПОРТАЛ -->
+  <div class="portal" id="portal">
+    <div class="portal-ripple"></div>
+    <div class="portal-ripple"></div>
+    <div class="portal-ripple"></div>
+    <div class="portal-ripple"></div>
+    <div class="portal-core" id="portalCore"></div>
+  </div>
+
+  <!-- ИНФО-КАРТОЧКА -->
+  <div class="info-card" id="infoCard">
+    <h1 class="greeting">
+      <span class="w">Привет,</span>
+      <span class="w">Нексо!</span>
+    </h1>
+
+    <p class="role">
+      <span class="w">Frontend-разработчик</span>
+    </p>
+
+    <p class="bio">
+      <span class="w">Помогаю</span>
+      <span class="w">РП</span>
+      <span class="w">проектам</span>
+      <span class="w">которые</span>
+      <span class="w">оживают.</span>
+      <span class="w">Фотограф</span>
+      <span class="w">по призванию</span>
+      <span class="w">и</span>
+      <span class="w">организатор</span>
+      <span class="w">ботнетов и хостов</span>
+    </p>
+
+    <nav class="links">
+      <a class="btn-link" href="https://t.me/hiNexo" target="_blank" rel="noopener">
+        <span class="w">Telegram</span>
+      </a>
+      <a class="btn-link" href="https://t.me/vulcanprojects" target="_blank" rel="noopener">
+        <span class="w">TGChannel</span>
+      </a>
+      <button class="btn-link" id="discordBtn" type="button" data-copy="hellnexo">
+        <span class="w">Discord</span>
+      </button>
+      <a class="btn-link" href="mailto:loki.rev@list.ru">
+        <span class="w">Email</span>
+      </a>
+    </nav>
+
+    <button class="restart" id="restart" type="button">пройти заново</button>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================================================================
+     ЭЛЕМЕНТЫ
+     ================================================================ */
+  const stage      = document.getElementById('stage');
+  const ballEl     = document.getElementById('ball');
+  const groundEl   = document.getElementById('ground');
+  const slotEl     = document.getElementById('slot');
+  const keyEl      = document.getElementById('key');
+  const hintEl     = document.getElementById('hint');
+  const portalEl   = document.getElementById('portal');
+  const portalCore = document.getElementById('portalCore');
+  const infoCard   = document.getElementById('infoCard');
+  const restartEl  = document.getElementById('restart');
+
+  /* ================================================================
+     КОНСТАНТЫ
+     ================================================================ */
+  const R             = 18;
+  const FLIP_AT       = 2000;
+  const FLIP_MS       = 650;
+  const ROLL_MS       = 3100;
+  const GRAV          = 2900;
+  const SNAP          = 68;
+  const LOCK_MS       = 320;
+  const FALL_LIGHT_MS = 520;
+
+  const P_OPEN_MS     = 800;
+  const P_SWALLOW_MS  = 950;
+  const P_SETTLE_MS   = 350;
+  const P_TOTAL_MS    = P_OPEN_MS + P_SWALLOW_MS + P_SETTLE_MS;
+
+  /* ================================================================
+     ПАСХАЛКА В КОНСОЛИ
+     ================================================================ */
+  console.log(
+    '%cЧто ты здесь забыл?',
+    [
+      'color: #000',
+      'font-size: 48px',
+      'font-weight: 900',
+      'font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+      'letter-spacing: 2px',
+      'padding: 12px 20px',
+      'background: #fff',
+      'border-radius: 8px',
+      'line-height: 1.2'
+    ].join(';')
+  );
+
+  /* ================================================================
+     ЗАГОЛОВОК ВКЛАДКИ
+     ================================================================ */
+  const TITLE_BEFORE = '???';
+  const TITLE_AFTER  = 'Привет, Нексо!';
+
+  const CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン'
+              + 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&@*<>/\\|+=?!';
+
+  function randomStr(len) {
+    let s = '';
+    for (let i = 0; i < len; i++) {
+      s += CHARS[(Math.random() * CHARS.length) | 0];
+    }
+    return s;
+  }
+
+  let titleLocked = false;
+
+  function scheduleBeforeGlitch() {
+    if (titleLocked) return;
+
+    const len = TITLE_BEFORE.length;
+    let ticks = 0;
+
+    const iv = setInterval(function () {
+      if (titleLocked) { clearInterval(iv); return; }
+      document.title = randomStr(len);
+      if (++ticks >= 6) {
+        clearInterval(iv);
+        if (!titleLocked) document.title = TITLE_BEFORE;
+      }
+    }, 55);
+
+    setTimeout(scheduleBeforeGlitch, 2800 + Math.random() * 3500);
+  }
+
+  document.title = TITLE_BEFORE;
+  setTimeout(scheduleBeforeGlitch, 1200);
+
+  /* ================================================================
+     СОСТОЯНИЕ
+     ================================================================ */
+  let W = 0, H = 0;
+  let groundY = 0, startX = 0, edgeX = 0;
+  let KW = 0, KH = 0, slotCX = 0, slotCY = 0;
+
+  let phase = 'roll';   // roll → fall → key → portal → done
+  let t0 = 0;
+  let light = 0;
+
+  let ballCX = 0, ballCY = 0, ballRot = 0;
+  let fallT0 = 0, fallVX = 0, rotAtFall = 0, angVel = 0;
+
+  let keyCX = 0, keyCY = 0, keyScale = 1, keyRot = 0;
+  let maxD = 1;
+  let dragging = false, dragOffX = 0, dragOffY = 0;
+  let locked = false, lockT0 = 0, lockFromX = 0, lockFromY = 0, lockFromLight = 0;
+
+  let hintFade = 0, keyPhaseT0 = 0;
+  let portalT0 = 0;
+
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+  /* ================================================================
+     РАЗМЕТКА
+     ================================================================ */
+  function layout() {
+    W = stage.clientWidth  || window.innerWidth;
+    H = stage.clientHeight || window.innerHeight;
+
+    groundY = Math.round(H * 0.68);
+    startX  = -R * 2.5;
+    edgeX   = W * 0.76;
+
+    groundEl.style.top   = groundY + 'px';
+    groundEl.style.width = edgeX + 'px';
+
+    KW = clamp(W * 0.32, 108, 200);
+    KH = KW / 2;
+    keyEl.style.width  = KW + 'px';
+    keyEl.style.height = KH + 'px';
+
+    slotCX = W / 2;
+    slotCY = H / 2;
+    slotEl.style.width  = Math.max(64, KW * 0.55) + 'px';
+    slotEl.style.height = Math.max(8, KH * 0.14) + 'px';
+    slotEl.style.left   = slotCX + 'px';
+    slotEl.style.top    = slotCY + 'px';
+
+    if (phase === 'key' && !locked) clampKey();
+  }
+
+  function clampKey() {
+    const m = 10;
+    keyCX = clamp(keyCX, KW / 2 + m, W - KW / 2 - m);
+    keyCY = clamp(keyCY, KH / 2 + m, H - KH / 2 - m);
+  }
+
+  /* ================================================================
+     ГЛАВНЫЙ ЦИКЛ
+     ================================================================ */
+  function frame(now) {
+    if (!t0) t0 = now;
+    const t = now - t0;
+
+    /* ---------- ФАЗА 1: КАТИТСЯ ---------- */
+    if (phase === 'roll') {
+
+      if (t < FLIP_AT) {
+        light = 0;
+      } else {
+        light = Math.min(1, (t - FLIP_AT) / FLIP_MS);
+      }
+
+      const p = Math.min(1, t / ROLL_MS);
+      ballCX  = startX + (edgeX - startX) * p;
+      ballCY  = groundY - R;
+      ballRot = -((ballCX - startX) / R) * (180 / Math.PI);
+
+      if (t >= ROLL_MS) {
+        phase     = 'fall';
+        fallT0    = now;
+        fallVX    = (edgeX - startX) / ROLL_MS;
+        rotAtFall = ballRot;
+        angVel    = (fallVX / R) * (180 / Math.PI);
+      }
+    }
+
+    /* ---------- ФАЗА 2: ПАДЕНИЕ ---------- */
+    else if (phase === 'fall') {
+      const dt = now - fallT0;
+      const s  = dt / 1000;
+
+      ballCX  = edgeX + fallVX * dt;
+      ballCY  = (groundY - R) + 0.5 * GRAV * s * s;
+      ballRot = rotAtFall - angVel * dt;
+
+      light = Math.max(0, 1 - dt / FALL_LIGHT_MS);
+
+      if (ballCY - R > H + 80) {
+        phase = 'key';
+        ballEl.style.display = 'none';
+        groundEl.classList.add('gone');
+        startKeyPhase(now);
+      }
+    }
+
+    /* ---------- ФАЗА 3: КЛЮЧ ---------- */
+    else if (phase === 'key') {
+
+      if (locked) {
+        const p = Math.min(1, (now - lockT0) / LOCK_MS);
+        const e = 1 - Math.pow(1 - p, 3);
+
+        keyCX    = lockFromX + (slotCX - lockFromX) * e;
+        keyCY    = lockFromY + (slotCY - lockFromY) * e;
+        keyScale = 1 - 0.18 * e;
+        keyRot   = -12 * e;
+        light    = lockFromLight + (1 - lockFromLight) * e;
+
+        if (p >= 1) {
+          startPortal(now);
+          apply();
+          requestAnimationFrame(frame);
+          return;
+        }
+
+      } else {
+        const d  = Math.hypot(keyCX - slotCX, keyCY - slotCY);
+        const nd = clamp(d / maxD, 0, 1);
+        light = Math.pow(1 - nd, 1.25);
+
+        hintFade = Math.min(1, (now - keyPhaseT0) / 900);
+      }
+    }
+
+    /* ---------- ФАЗА 4: ПОРТАЛ ---------- */
+    else if (phase === 'portal') {
+      const pt   = now - portalT0;
+      const dMax = Math.hypot(W, H) * 2.4;
+
+      let coreD  = 30;
+      let keyOp  = 1;
+      let slotOp = 0.9;
+
+      if (pt < P_OPEN_MS) {
+        const p = pt / P_OPEN_MS;
+        const e = p * p * (3 - 2 * p);
+        coreD  = 30 + 150 * e;
+        keyOp  = 1 - e;
+        slotOp = 0.9 * (1 - e);
+
+      } else if (pt < P_OPEN_MS + P_SWALLOW_MS) {
+        const p = (pt - P_OPEN_MS) / P_SWALLOW_MS;
+        const e = p * p;
+        coreD  = 180 + (dMax - 180) * e;
+        keyOp  = 0;
+        slotOp = 0;
+        light  = 0;
+
+      } else {
+        coreD  = dMax;
+        keyOp  = 0;
+        slotOp = 0;
+        light  = 0;
+      }
+
+      portalCore.style.width  = coreD + 'px';
+      portalCore.style.height = coreD + 'px';
+      keyEl.style.opacity     = keyOp.toFixed(3);
+      slotEl.style.opacity    = slotOp.toFixed(3);
+
+      hintEl.classList.add('hide');
+      hintEl.style.opacity = '0';
+
+      if (pt >= P_TOTAL_MS) {
+        showInfoCard();
+        return;
+      }
+    }
+
+    apply();
+    requestAnimationFrame(frame);
+  }
+
+  /* ================================================================
+     ОТРИСОВКА
+     ================================================================ */
+  function apply() {
+    const bg  = Math.round(light * 255);
+    const fg  = 255 - bg;
+    const bgc = 'rgb(' + bg + ',' + bg + ',' + bg + ')';
+    const fgc = 'rgb(' + fg + ',' + fg + ',' + fg + ')';
+
+    stage.style.background = bgc;
+    stage.style.color      = fgc;
+    stage.style.setProperty('--bg', bgc);
+
+    ballEl.style.transform =
+      'translate(' + (ballCX - R) + 'px,' + (ballCY - R) + 'px) rotate(' + ballRot + 'deg)';
+
+    keyEl.style.transform =
+      'translate(' + (keyCX - KW / 2) + 'px,' + (keyCY - KH / 2) + 'px)' +
+      ' scale(' + keyScale + ') rotate(' + keyRot + 'deg)';
+
+    if (phase === 'key' || phase === 'roll' || phase === 'fall') {
+      hintEl.style.opacity = (0.5 * (1 - light) * hintFade).toFixed(3);
+    }
+  }
+
+  /* ================================================================
+     СТАРТ ФАЗЫ КЛЮЧА
+     ================================================================ */
+  function startKeyPhase(now) {
+    keyPhaseT0 = now;
+
+    keyCX = clamp(W * 0.24, KW / 2 + 14, W - KW / 2 - 14);
+    keyCY = clamp(H * 0.78, KH / 2 + 14, H - KH / 2 - 14);
+
+    maxD = Math.hypot(keyCX - slotCX, keyCY - slotCY);
+    if (maxD < 1) maxD = 1;
+
+    slotEl.classList.add('show');
+    keyEl.classList.add('show');
+  }
+
+  /* ================================================================
+     СТАРТ ПОРТАЛА
+     ================================================================ */
+  function startPortal(now) {
+    phase    = 'portal';
+    portalT0 = now;
+    hintFade = 0;
+
+    hintEl.classList.add('hide');
+    hintEl.style.opacity = '0';
+
+    portalEl.style.left = slotCX + 'px';
+    portalEl.style.top  = slotCY + 'px';
+    portalEl.classList.add('on');
+
+    keyCX = slotCX;
+    keyCY = slotCY;
+
+    apply();
+  }
+
+  /* ================================================================
+     ПОКАЗ ИНФО-КАРТОЧКИ
+     ================================================================ */
+  function showInfoCard() {
+    phase = 'done';
+    light = 0;
+    apply();
+
+    hintEl.style.opacity = '0';
+    hintEl.style.display = 'none';
+
+    titleLocked = true;
+    document.title = TITLE_AFTER;
+
+    portalEl.classList.remove('on');
+    infoCard.classList.add('on');
+  }
+
+  /* ================================================================
+     ПЕРЕТАСКИВАНИЕ КЛЮЧА
+     ================================================================ */
+  keyEl.addEventListener('pointerdown', function (e) {
+    if (phase !== 'key' || locked) return;
+    e.preventDefault();
+
+    dragging = true;
+    keyEl.classList.add('dragging');
+    try { keyEl.setPointerCapture(e.pointerId); } catch (err) {}
+
+    const r  = stage.getBoundingClientRect();
+    dragOffX = (e.clientX - r.left) - keyCX;
+    dragOffY = (e.clientY - r.top)  - keyCY;
+  });
+
+  keyEl.addEventListener('pointermove', function (e) {
+    if (!dragging || locked) return;
+
+    const r  = stage.getBoundingClientRect();
+    keyCX = (e.clientX - r.left) - dragOffX;
+    keyCY = (e.clientY - r.top)  - dragOffY;
+    clampKey();
+
+    const d = Math.hypot(keyCX - slotCX, keyCY - slotCY);
+    if (d < SNAP) {
+      locked        = true;
+      dragging      = false;
+      lockT0        = performance.now();
+      lockFromX     = keyCX;
+      lockFromY     = keyCY;
+      lockFromLight = light;
+
+      keyEl.classList.remove('dragging');
+      try { keyEl.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+  });
+
+  function endDrag() {
+    dragging = false;
+    keyEl.classList.remove('dragging');
+  }
+
+  keyEl.addEventListener('pointerup', endDrag);
+  keyEl.addEventListener('pointercancel', endDrag);
+  keyEl.addEventListener('lostpointercapture', endDrag);
+
+  /* ================================================================
+     КОПИРОВАНИЕ DISCORD
+     ================================================================ */
+  const discordBtn   = document.getElementById('discordBtn');
+  const discordText  = discordBtn.dataset.copy;
+  const discordLabel = discordBtn.querySelector('.w');
+
+  discordBtn.addEventListener('click', function () {
+    const showCopied = function () {
+      discordLabel.textContent = 'Скопировано';
+      setTimeout(function () { discordLabel.textContent = 'Discord'; }, 1400);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(discordText).then(showCopied).catch(function () {
+        fallbackCopy(discordText, showCopied);
+      });
+    } else {
+      fallbackCopy(discordText, showCopied);
+    }
+  });
+
+  function fallbackCopy(text, cb) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      if (cb) cb();
+    } catch (err) {
+      console.warn('Не удалось скопировать:', err);
+    }
+    document.body.removeChild(ta);
+  }
+
+  /* ================================================================
+     ПЕРЕЗАПУСК
+     ================================================================ */
+  restartEl.addEventListener('click', function () {
+    location.reload();
+  });
+
+  /* ================================================================
+     РЕСАЙЗ
+     ================================================================ */
+  window.addEventListener('resize', layout);
+
+  /* ================================================================
+     СТАРТ
+     ================================================================ */
+  layout();
+  requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
