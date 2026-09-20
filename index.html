@@ -36,11 +36,13 @@
   .ground {
     position: absolute;
     left: 0;
+    top: 0;
     height: 3px;
     border-radius: 3px;
     background: currentColor;
     transition: opacity .5s ease;
-    will-change: opacity;
+    will-change: transform, opacity;
+    transform-origin: left center;
   }
   .ground.gone { opacity: 0; }
 
@@ -282,8 +284,7 @@
     background: rgba(255,255,255,.2);
   }
 
-  /* текст внутри кнопки тоже поднимается и подсвечивается
-     при наведении на любую точку кнопки, а не только на сам текст */
+  /* текст внутри кнопки тоже поднимается и подсвечивается */
   .btn-link:hover .w {
     transform: translateY(-3px);
     text-shadow: 0 0 12px rgba(255,255,255,.55);
@@ -356,7 +357,7 @@
     </h1>
 
     <p class="role">
-      <span class="w">Страх Захара по призванию! Хе-хе.</span>
+      <span class="w">Frontend-разработчик</span>
     </p>
 
     <p class="bio">
@@ -491,14 +492,25 @@
      СОСТОЯНИЕ
      ================================================================ */
   let W = 0, H = 0;
-  let groundY = 0, startX = 0, edgeX = 0;
+  let groundY = 0;
+
+  /* --- камера и мир --- */
+  let worldStart = 0;     // левый край дороги в мировых координатах
+  let worldEdge  = 0;     // правый край дороги (откуда падаем)
+  let followX    = 0;     // экранная X-позиция шара, пока камера его "держит"
+  let fallScreenX = 0;    // экранная X-позиция края, где шар срывается
+  let cameraMaxX = 0;     // максимум, до которого доезжает камера
+
+  let worldX  = 0;        // текущая позиция шара в мире
+  let cameraX = 0;        // текущая позиция камеры (мировая X на левом краю экрана)
+  let ballCX = 0, ballCY = 0, ballRot = 0;
+
   let KW = 0, KH = 0, slotCX = 0, slotCY = 0;
 
   let phase = 'roll';   // roll → fall → key → portal → done
   let t0 = 0;
   let light = 0;
 
-  let ballCX = 0, ballCY = 0, ballRot = 0;
   let fallT0 = 0, fallVX = 0, rotAtFall = 0, angVel = 0;
 
   let keyCX = 0, keyCY = 0, keyScale = 1, keyRot = 0;
@@ -519,11 +531,20 @@
     H = stage.clientHeight || window.innerHeight;
 
     groundY = Math.round(H * 0.68);
-    startX  = -R * 2.5;
-    edgeX   = W * 0.76;
+
+    /* Настройки камеры:
+       - шар висит на followX пока камера его держит
+       - дорога длиной worldEdge мировых пикселей
+       - у самого конца камера "отпускает" шар, и он срывается
+         на экранной позиции fallScreenX */
+    followX     = Math.min(W * 0.32, 220);
+    fallScreenX = W * 0.80;
+    worldStart  = -followX;           // чуть-чуть дороги слева, чтоб не было пустоты
+    worldEdge   = W * 2.2;            // общая длина дороги
+    cameraMaxX  = worldEdge - fallScreenX;
 
     groundEl.style.top   = groundY + 'px';
-    groundEl.style.width = edgeX + 'px';
+    groundEl.style.width = (worldEdge - worldStart) + 'px';
 
     KW = clamp(W * 0.32, 108, 200);
     KH = KW / 2;
@@ -553,7 +574,7 @@
     if (!t0) t0 = now;
     const t = now - t0;
 
-    /* ---------- ФАЗА 1: КАТИТСЯ ---------- */
+    /* ---------- ФАЗА 1: КАТИТСЯ (камера следит за шаром) ---------- */
     if (phase === 'roll') {
 
       if (t < FLIP_AT) {
@@ -563,14 +584,20 @@
       }
 
       const p = Math.min(1, t / ROLL_MS);
-      ballCX  = startX + (edgeX - startX) * p;
+      worldX  = p * worldEdge;
+      cameraX = Math.min(cameraMaxX, worldX - followX);
+
+      ballCX  = worldX - cameraX;
       ballCY  = groundY - R;
-      ballRot = -((ballCX - startX) / R) * (180 / Math.PI);
+      ballRot = -(worldX / R) * (180 / Math.PI);
+
+      /* двигаем дорогу в мире → на экране она едет влево */
+      groundEl.style.transform = 'translateX(' + (worldStart - cameraX) + 'px)';
 
       if (t >= ROLL_MS) {
         phase     = 'fall';
         fallT0    = now;
-        fallVX    = (edgeX - startX) / ROLL_MS;
+        fallVX    = worldEdge / ROLL_MS;              // px/ms
         rotAtFall = ballRot;
         angVel    = (fallVX / R) * (180 / Math.PI);
       }
@@ -581,7 +608,7 @@
       const dt = now - fallT0;
       const s  = dt / 1000;
 
-      ballCX  = edgeX + fallVX * dt;
+      ballCX  = fallScreenX + fallVX * dt;
       ballCY  = (groundY - R) + 0.5 * GRAV * s * s;
       ballRot = rotAtFall - angVel * dt;
 
